@@ -16,6 +16,7 @@ A single-file image → cost estimation pipeline that converts object detections
 - **Verification**: compare API vs local totals and decide `accepted`, `blended`, `provisional`, or `flagged`.  
 - **Currency**: USD↔MXN conversion via cached FX lookup with multi-provider fallback.  
 - **Output**: annotated image, concise logs per detection, and summary totals.
+- **Running the server in the foreground.**
 
 ---
 
