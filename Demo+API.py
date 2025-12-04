@@ -87,13 +87,34 @@ def _extract_total_from_verified(verified):
     raise ValueError("Estimator result missing 'total' field")
 
 # at top of file (config)
-FX_ACCESS_KEY = os.getenv("FX_ACCESS_KEY", "").strip()   # add to your .env if you have a key
+FX_ACCESS_KEY = os.getenv("FX_ACCESS_KEY")   # add to your .env if you have a key
 
 # replace get_usd_mxn_rate with this version
 def get_usd_mxn_rate() -> float:
     now = time.time()
     if _rate_cache["rate"] and now - _rate_cache["ts"] < RATE_TTL:
         return _rate_cache["rate"]
+
+    # 3) exchangerate.host live endpoint (usage counted)
+    try:
+        if FX_ACCESS_KEY:
+            r = requests.get(
+                "https://api.exchangerate.host/live",
+                params={"access_key": FX_ACCESS_KEY, "base": "USD", "symbols": "MXN"},
+                timeout=8
+            )
+            j = r.json()
+            usd_mxn_rate = j["quotes"]["USDMXN"]
+            r.raise_for_status()
+            j = r.json()
+            if j.get("success") and "USDMXN" in j.get("quotes", {}):
+                rate = float(j["quotes"]["USDMXN"])
+                _rate_cache.update({"rate": rate, "ts": now})
+                logging.info("FX rate fetched (exchangerate.host live): 1 USD = %.4f MXN", rate)
+                return rate
+
+    except Exception as e:
+        logging.debug("exchangerate.host live attempt failed: %s", e)
 
     # 1) open provider (no key)
     try:
@@ -119,93 +140,18 @@ def get_usd_mxn_rate() -> float:
             )
             r.raise_for_status()
             j = r.json()
-            if "rates" in j and "MXN" in j["rates"]:
-                rate = float(j["rates"]["MXN"])
+            if "quotes" in j and "USDMXN" in j["quotes"]:
+                rate = float(j["quotes"]["USDMXN"])
                 _rate_cache.update({"rate": rate, "ts": now})
                 logging.info("FX rate fetched (apilayer): 1 USD = %.4f MXN", rate)
                 return rate
         except Exception as e:
             logging.debug("apilayer attempt failed: %s", e)
-
-    # 3) try exchangerate.host with access_key param (legacy)
-    try:
-        params = {"base": "USD", "symbols": "MXN"}
-        if FX_ACCESS_KEY:
-            params["access_key"] = FX_ACCESS_KEY
-        r = requests.get("https://api.exchangerate.host/latest", params=params, timeout=8)
-        r.raise_for_status()
-        j = r.json()
-        rates = j.get("rates", {})
-        if "MXN" in rates:
-            rate = float(rates["MXN"])
-            _rate_cache.update({"rate": rate, "ts": now})
-            logging.info("FX rate fetched (exchangerate.host): 1 USD = %.4f MXN", rate)
-            return rate
-    except Exception as e:
-        logging.debug("exchangerate.host attempt failed: %s", e)
 
     # fallback
     logging.warning("Using fallback FX rate: %.4f", USD_FX_FALLBACK)
     return USD_FX_FALLBACK
 
-
-def get_usd_mxn_rate() -> float:
-    now = time.time()
-    if _rate_cache["rate"] and now - _rate_cache["ts"] < RATE_TTL:
-        return _rate_cache["rate"]
-
-    # 1) try open provider (no key)
-    try:
-        r = requests.get("https://open.er-api.com/v6/latest/USD", timeout=6)
-        r.raise_for_status()
-        j = r.json()
-        if "rates" in j and "MXN" in j["rates"]:
-            rate = float(j["rates"]["MXN"])
-            _rate_cache.update({"rate": rate, "ts": now})
-            logging.info("FX rate fetched (open): 1 USD = %.4f MXN", rate)
-            return rate
-    except Exception as e:
-        logging.debug("Open FX provider failed: %s", e)
-
-    # 2) try apilayer endpoint with header auth (if key present)
-    if FX_ACCESS_KEY:
-        try:
-            r = requests.get(
-                "https://api.apilayer.com/exchangerates_data/latest",
-                params={"base": "USD", "symbols": "MXN"},
-                headers={"apikey": FX_ACCESS_KEY},
-                timeout=8
-            )
-            r.raise_for_status()
-            j = r.json()
-            if "rates" in j and "MXN" in j["rates"]:
-                rate = float(j["rates"]["MXN"])
-                _rate_cache.update({"rate": rate, "ts": now})
-                logging.info("FX rate fetched (apilayer): 1 USD = %.4f MXN", rate)
-                return rate
-        except Exception as e:
-            logging.debug("apilayer attempt failed: %s", e)
-
-    # 3) try exchangerate.host with access_key param (documented usage)
-    try:
-        params = {"base": "USD", "symbols": "MXN"}
-        if FX_ACCESS_KEY:
-            params["access_key"] = FX_ACCESS_KEY
-        r = requests.get("https://api.exchangerate.host/latest", params=params, timeout=8)
-        r.raise_for_status()
-        j = r.json()
-        rates = j.get("rates", {})
-        if "MXN" in rates:
-            rate = float(rates["MXN"])
-            _rate_cache.update({"rate": rate, "ts": now})
-            logging.info("FX rate fetched (exchangerate.host): 1 USD = %.4f MXN", rate)
-            return rate
-    except Exception as e:
-        logging.debug("exchangerate.host attempt failed: %s", e)
-
-    # 4) fallback to cached or static
-    logging.warning("Using fallback FX rate: %.4f", USD_FX_FALLBACK)
-    return USD_FX_FALLBACK
 
 USD_to_MXN = get_usd_mxn_rate()
 MXN_to_USD = 1.0 / USD_to_MXN
@@ -589,6 +535,6 @@ def run_image_estimation(image_path: str):
 # --- Entrypoint ---
 if __name__ == "__main__":
     try:
-        run_image_estimation("7275.jpg")
+        run_image_estimation("7692.jpg")
     except Exception as e:
         logging.exception("Fatal error: %s", e)
