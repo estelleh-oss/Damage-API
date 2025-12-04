@@ -1,0 +1,11 @@
+python-dotenv
+requests
+urllib3
+pandas
+openpyxl
+opencv-python
+ultralytics
+cvzone
+torch
+torchvision
+Flask
