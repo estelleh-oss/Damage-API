@@ -1,4 +1,7 @@
-llm_estimator.py - Main Flask API server. Receives JSON → returns cost estimate using Gemini. 
+API connection to Gemini - Fetch dynamic cost estimation (in MXN and USD) based on input car model, year, damage part and severity. The estimation will also go through a verification with local database before finalized.
+
+
+llm_estimator v2.py - Main Flask API server. Receives JSON → returns cost estimate using Gemini. 
 list_models.py - Utility script to list available Gemini models your API key can access. 
 cost_test.py -  Client script that sends a sample request to the API and prints the response. 
 .env Stores your API keys and config (NOT included in GitHub). (GET YOUR OWN API KEY FROM GOOGLE AI Studio)
